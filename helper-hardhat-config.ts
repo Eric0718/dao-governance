@@ -30,4 +30,4 @@ export interface networkConfigItem {
   
   export const NEW_STORE_VALUE = 77
   export const FUNC = "store"
-  export const PROPOSAL_DESCRIPTION = "Proposal #1 77 in the Box!"
+  export const PROPOSAL_DESCRIPTION = "Proposal #1 77 in the Business!"
