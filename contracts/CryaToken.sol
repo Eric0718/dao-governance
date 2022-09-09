@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 contract CryaToken is ERC20Votes {
     uint256 public constant _totalSupply = 2000000000e18;
 
-    constructor(address lockAddress) ERC20("CryaToken", "CRYA") ERC20Permit("CryaToken") {
-        _mint(lockAddress, _totalSupply);
+    constructor(address initAddress) ERC20("CryaToken", "CRYA") ERC20Permit("CryaToken") {
+        _mint(initAddress, _totalSupply);
     }
 
     // The functions below are overrides required by Solidity.

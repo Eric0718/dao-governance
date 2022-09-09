@@ -35,7 +35,7 @@ contract CryaLock{
     mapping(AddressType => uint256) public distributionRatios;
     mapping(AddressType => uint256) public distributionRatiosUsed;  //need to update
 
-    uint256 immutable tokenTotalSupply;
+    uint256 tokenTotalSupply;
     uint256 constant baseTimeInterval = 30 days;
 
     CryaToken public token;
@@ -43,10 +43,11 @@ contract CryaLock{
     event Release(address beneficiary, uint256 amount);
     event LockBalance(address beneficiary, uint256 amount);
 
-    constructor(uint256 _tgeTime){
+    constructor(uint256 _tgeTime,CryaToken _token){
         tgeTime = _tgeTime;
         admin = msg.sender;
-        tokenTotalSupply = token.totalSupply(); 
+        token = _token;
+        tokenTotalSupply = token.totalSupply();
         initDistributionRatio();
     }
 
@@ -149,7 +150,7 @@ contract CryaLock{
             } 
         }else if (userType == uint8(AddressType.IDOPublicOffering)){
             if(calTime >= updateTime){
-                //TGE +1 release 33.3%
+                //TGE release 33.3%
                 if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
                     return addressInfos[user].totalLocked.mul(333).div(1000);
                 }else if (calTime > (updateTime + baseTimeInterval)){
@@ -185,8 +186,7 @@ contract CryaLock{
     }
 
     function release(address to,uint256 releaseAmount)private {
-        address from = address(this);
-        uint256 avaiBalance = token.balanceOf(from);
+        uint256 avaiBalance = token.balanceOf(admin);
 
         require(releaseAmount <= avaiBalance,"Balance not enough!");
 
@@ -196,7 +196,7 @@ contract CryaLock{
             addressInfos[to].lastUpdateTime = block.timestamp;
         }
         
-        token.transferFrom(from, to, releaseAmount);
+        token.transferFrom(admin, to, releaseAmount);
         emit Release(to, releaseAmount);
     }
 
@@ -214,7 +214,7 @@ contract CryaLock{
             updateTime = startTime;
             endTime = tgeTime + 60 * baseTimeInterval;   //(3 + 9 + 48) month
         }else if (_addrType == AddressType.IDOPublicOffering) {
-            startTime = tgeTime + 1 days;
+            startTime = tgeTime;
             updateTime = startTime;
             endTime = tgeTime + 2 * baseTimeInterval;    //2 month
         }else if (_addrType == AddressType.Consultant) {
@@ -237,10 +237,9 @@ contract CryaLock{
     //airDropNFTSale
     //or others
     function transferTo(address to, uint256 amount) public onlyAdmin{
-        address from = address(this);
-        uint256 avaiBalance = token.balanceOf(from);
+        uint256 avaiBalance = token.balanceOf(admin);
 
         require(amount <= avaiBalance,"Balance not enough!");
-        token.transferFrom(from, to, amount);
+        token.transferFrom(admin, to, amount);
     }
 }
