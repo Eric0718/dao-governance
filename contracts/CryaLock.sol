@@ -8,7 +8,7 @@ contract CryaLock{
     using SafeMath for uint256;
 
     address public admin;
-    uint64 immutable tgeTime;
+    uint256 immutable tgeTime;
 
     enum AddressType{
       SaftRound,
@@ -24,9 +24,9 @@ contract CryaLock{
       uint8 addressType;
       uint256 totalLocked;
       uint256 lockedLeft;  //need to update
-      uint64 releaseStartTime;
-      uint64 lastUpdateTime;    //need to update
-      uint64 releaseEndTime;
+      uint256 releaseStartTime;
+      uint256 lastUpdateTime;    //need to update
+      uint256 releaseEndTime;
     }
 
     mapping(address => addressInfo) addressInfos;
@@ -36,12 +36,14 @@ contract CryaLock{
     mapping(AddressType => uint256) public distributionRatiosUsed;  //need to update
 
     uint256 immutable tokenTotalSupply;
+    uint256 constant baseTimeInterval = 30 days;
+
     CryaToken public token;
 
     event Release(address beneficiary, uint256 amount);
     event LockBalance(address beneficiary, uint256 amount);
 
-    constructor(uint64 _tgeTime){
+    constructor(uint256 _tgeTime){
         tgeTime = _tgeTime;
         admin = msg.sender;
         tokenTotalSupply = token.totalSupply(); 
@@ -54,29 +56,37 @@ contract CryaLock{
     }
 
     function initDistributionRatio()private{
+        //SaftRound is 15% of tokenTotalSupply.
         distributionRatios[AddressType.SaftRound] = tokenTotalSupply.mul(15).div(100);
         distributionRatiosUsed[AddressType.SaftRound] = 0;
 
+        //StrategicSupporter is 16% of tokenTotalSupply.
         distributionRatios[AddressType.StrategicSupporter] = tokenTotalSupply.mul(16).div(100);
         distributionRatiosUsed[AddressType.StrategicSupporter] = 0;
 
+        //Ecology is 39% of tokenTotalSupply.
         distributionRatios[AddressType.Ecology] = tokenTotalSupply.mul(39).div(100);
         distributionRatiosUsed[AddressType.Ecology] = 0;
-
+        
+        //IDOPublicOffering is 4% of tokenTotalSupply.
         distributionRatios[AddressType.IDOPublicOffering] = tokenTotalSupply.mul(4).div(100);
         distributionRatiosUsed[AddressType.IDOPublicOffering] = 0;
 
+        //Consultant is 6% of tokenTotalSupply.
         distributionRatios[AddressType.Consultant] = tokenTotalSupply.mul(6).div(100);
         distributionRatiosUsed[AddressType.Consultant] = 0;
 
+        //NftSale is 5% of tokenTotalSupply
         distributionRatios[AddressType.NftSale] = tokenTotalSupply.mul(5).div(100);
         distributionRatiosUsed[AddressType.NftSale] = 0;
 
+        //Team is 15% of tokenTotalSupply
         distributionRatios[AddressType.Team] = tokenTotalSupply.mul(15).div(100);
         distributionRatiosUsed[AddressType.Team] = 0;
     }
 
-    function addTGEAddresses(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)public onlyAdmin{
+    //add addresses before TGE
+    function addAddressesBeforeTge(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)public onlyAdmin{
         require(block.timestamp < tgeTime,"This function only called before tgeTime!");
         require(_accounts.length == _addressTypes.length,"Length not equal!");
         require(_addressTypes.length == _lockBalances.length,"Length not equal!");
@@ -85,18 +95,15 @@ contract CryaLock{
                     .sub(distributionRatiosUsed[AddressType(_addressTypes[i])]);
             require(availableDistribution >= _lockBalances[i],"availableDistribution amount not enough!");
 
-            (uint64 start,uint64 update,uint64 end) = calculateStartEndTime(AddressType(_addressTypes[i]));
+            (uint256 start,uint256 update,uint256 end) = calculateStartEndTime(AddressType(_addressTypes[i]));
             addressInfos[_accounts[i]] = addressInfo(_addressTypes[i],_lockBalances[i],_lockBalances[i],start,update,end);
+            distributionRatiosUsed[AddressType(_addressTypes[i])] += _lockBalances[i];
             addresses.push(_accounts[i]);
-
-            if(_addressTypes[i] == uint8(AddressType.SaftRound)){
-                uint256 releaseAmount = _lockBalances[i].mul(5).div(100);
-                release(_accounts[i],releaseAmount);
-            }
             emit LockBalance(_accounts[i], addressInfos[_accounts[i]].lockedLeft);
         }
     }
 
+    //release locked balance by address type
     function releaseLockedBalance(uint8 _type) public onlyAdmin{
         require(_type >=0 && _type <=6,"Wrong type!");
         require(block.timestamp >= tgeTime,"TGE not start!");
@@ -118,55 +125,63 @@ contract CryaLock{
         uint256 updateTime = addressInfos[user].lastUpdateTime;
         uint256 endTime = addressInfos[user].releaseEndTime;
         uint256 calTime = block.timestamp > endTime ? endTime : block.timestamp;
-        uint256 everyTimeAmount;
+        uint256 releaseAmount;
 
         if (userType == uint8(AddressType.SaftRound)){
             //release in 18 months
-            if(calTime > updateTime){
-                everyTimeAmount = addressInfos[user].totalLocked.div(18);
+            if(calTime >= updateTime){
+                if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
+                    return addressInfos[user].totalLocked.mul(5).div(100); 
+                }
+                releaseAmount = addressInfos[user].totalLocked.div(18);
             }
         }else if (userType == uint8(AddressType.Ecology)){
-            if(calTime > updateTime){
+            if(calTime >= updateTime){
                 //25% locked release in 9 months 
-                if(calTime < (startTime + 10 * 30 days)){
+                if(calTime < (startTime + 10 * baseTimeInterval)){
                     uint256 lockedBalance = addressInfos[user].totalLocked.mul(25).div(100);
-                    everyTimeAmount = lockedBalance.div(9);             
-                }else if (calTime > (startTime + 10 * 30 days)){    
+                    releaseAmount = lockedBalance.div(9);             
+                }else if (calTime > (startTime + 10 * baseTimeInterval)){    
                     //75% locked release in 48  months
                     uint256 lockedBalance = addressInfos[user].totalLocked.mul(75).div(100);
-                    everyTimeAmount = lockedBalance.div(48);
+                    releaseAmount = lockedBalance.div(48);
                 }
             } 
         }else if (userType == uint8(AddressType.IDOPublicOffering)){
-            if(calTime > updateTime){
-                if(calTime >= (startTime) && (addressInfos[user].totalLocked == addressInfos[user].lockedLeft)){
-                    everyTimeAmount = addressInfos[user].totalLocked.mul(333).div(1000);
-                    return everyTimeAmount;
-                }else if (calTime > (updateTime + 31 days)){
+            if(calTime >= updateTime){
+                //TGE +1 release 33.3%
+                if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
+                    return addressInfos[user].totalLocked.mul(333).div(1000);
+                }else if (calTime > (updateTime + baseTimeInterval)){
+                    //66.7% release in two months
                     uint256 lockedBalance = addressInfos[user].totalLocked.mul(667).div(1000);
-                    everyTimeAmount = lockedBalance.div(2);
+                    releaseAmount = lockedBalance.div(2);
                 }
             }     
         }else if (userType == uint8(AddressType.Consultant)){
-            if(calTime > updateTime){
-                everyTimeAmount = addressInfos[user].totalLocked.div(33);
+            //release in 33 months
+            if(calTime >= updateTime){
+                releaseAmount = addressInfos[user].totalLocked.div(33);
             }
         }else if (userType == uint8(AddressType.Team)){
-            if(calTime > updateTime){
-                if(calTime >= (startTime) && (addressInfos[user].totalLocked == addressInfos[user].lockedLeft)){
-                    everyTimeAmount = addressInfos[user].totalLocked.mul(20).div(100);
-                    return everyTimeAmount;
-                }else if (calTime > (updateTime + 31 days)){
+            if(calTime >= updateTime){
+                //20% release in a year
+                if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
+                    return addressInfos[user].totalLocked.mul(20).div(100);
+                }else if (calTime > (updateTime + baseTimeInterval)){
+                    //80% release in 48 months
                     uint256 lockedBalance = addressInfos[user].totalLocked.mul(80).div(100);
-                    everyTimeAmount = lockedBalance.div(48);
+                    releaseAmount = lockedBalance.div(48);
                 }
             }  
+        }else{
+            revert("Not a correct type to release!");
         }
 
-        uint256 numbs = (calTime - updateTime).div(30 days);
+        uint256 numbs = (calTime - updateTime).div(baseTimeInterval);
         require(numbs > 0,"Release: Not a correct time to release!");
-        addressInfos[user].lastUpdateTime = uint64(updateTime + numbs * 30 days);
-        return everyTimeAmount * numbs;
+        addressInfos[user].lastUpdateTime = updateTime + numbs * baseTimeInterval;
+        return releaseAmount * numbs;
     }
 
     function release(address to,uint256 releaseAmount)private {
@@ -174,12 +189,11 @@ contract CryaLock{
         uint256 avaiBalance = token.balanceOf(from);
 
         require(releaseAmount <= avaiBalance,"Balance not enough!");
-        distributionRatiosUsed[AddressType(addressInfos[to].addressType)] += releaseAmount;
 
         require(addressInfos[to].lockedLeft >= releaseAmount);
         addressInfos[to].lockedLeft -= releaseAmount;
         if(block.timestamp > addressInfos[to].releaseStartTime){
-            addressInfos[to].lastUpdateTime = uint64(block.timestamp);
+            addressInfos[to].lastUpdateTime = block.timestamp;
         }
         
         token.transferFrom(from, to, releaseAmount);
@@ -190,27 +204,27 @@ contract CryaLock{
         return addressInfos[account].lockedLeft;
     }
 
-    function calculateStartEndTime(AddressType _addrType)private view returns(uint64 startTime,uint64 updateTime,uint64 endTime){
+    function calculateStartEndTime(AddressType _addrType)private view returns(uint256 startTime,uint256 updateTime,uint256 endTime){
         if (_addrType == AddressType.SaftRound){
             startTime = tgeTime;
             updateTime = startTime;
-            endTime = tgeTime + 18 * 30 days;   //18 month
+            endTime = tgeTime + 18 * baseTimeInterval;   //18 month
         }else if (_addrType == AddressType.Ecology) {
-            startTime = tgeTime + 3 * 30 days;
+            startTime = tgeTime + 3 * baseTimeInterval;
             updateTime = startTime;
-            endTime = tgeTime + 60 * 30 days;   //(3 + 9 + 48) month
+            endTime = tgeTime + 60 * baseTimeInterval;   //(3 + 9 + 48) month
         }else if (_addrType == AddressType.IDOPublicOffering) {
             startTime = tgeTime + 1 days;
             updateTime = startTime;
-            endTime = tgeTime + 2 * 30 days;    //2 month
+            endTime = tgeTime + 2 * baseTimeInterval;    //2 month
         }else if (_addrType == AddressType.Consultant) {
-            startTime = tgeTime + 3 * 30 days;
+            startTime = tgeTime + 3 * baseTimeInterval;
             updateTime = startTime;
-            endTime = tgeTime + 36 * 30 days;   //(3 + 33) month
+            endTime = tgeTime + 36 * baseTimeInterval;   //(3 + 33) month
         }else if (_addrType == AddressType.Team) {
-            startTime = tgeTime + 12 * 30 days;
+            startTime = tgeTime + 12 * baseTimeInterval;
             updateTime = startTime;
-            endTime = tgeTime + 60 * 30 days;   //(12 + 48) month
+            endTime = tgeTime + 60 * baseTimeInterval;   //(12 + 48) month
         }else{
             startTime = 0;
             updateTime = 0;
@@ -222,7 +236,7 @@ contract CryaLock{
     //airDropStrategicSupporter
     //airDropNFTSale
     //or others
-    function airDropTo(address to, uint256 amount) public onlyAdmin{
+    function transferTo(address to, uint256 amount) public onlyAdmin{
         address from = address(this);
         uint256 avaiBalance = token.balanceOf(from);
 
