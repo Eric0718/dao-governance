@@ -188,14 +188,12 @@ contract CryaLock{
     function release(address to,uint256 releaseAmount)private {
         uint256 avaiBalance = token.allowance(admin, address(this));
         require(releaseAmount <= avaiBalance,"allowance not enough!");
+        
         uint256 senderBalance = token.balanceOf(admin);
         require(releaseAmount <= senderBalance,"sender balance not enough!");
 
         require(addressInfos[to].lockedLeft >= releaseAmount);
         addressInfos[to].lockedLeft -= releaseAmount;
-        if(block.timestamp > addressInfos[to].releaseStartTime){
-            addressInfos[to].lastUpdateTime = block.timestamp;
-        }
         
         token.transferFrom(admin, to, releaseAmount);
         emit Release(to, releaseAmount);
