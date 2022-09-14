@@ -186,9 +186,10 @@ contract CryaLock{
     }
 
     function release(address to,uint256 releaseAmount)private {
-        uint256 avaiBalance = token.balanceOf(admin);
-
-        require(releaseAmount <= avaiBalance,"Balance not enough!");
+        uint256 avaiBalance = token.allowance(admin, address(this));
+        require(releaseAmount <= avaiBalance,"allowance not enough!");
+        uint256 senderBalance = token.balanceOf(admin);
+        require(releaseAmount <= senderBalance,"sender balance not enough!");
 
         require(addressInfos[to].lockedLeft >= releaseAmount);
         addressInfos[to].lockedLeft -= releaseAmount;
@@ -231,15 +232,5 @@ contract CryaLock{
             endTime = 0; 
         }
         return (startTime,updateTime,endTime);
-    }
- 
-    //airDropStrategicSupporter
-    //airDropNFTSale
-    //or others
-    function transferTo(address to, uint256 amount) public onlyAdmin{
-        uint256 avaiBalance = token.balanceOf(admin);
-
-        require(amount <= avaiBalance,"Balance not enough!");
-        token.transferFrom(admin, to, amount);
     }
 }
