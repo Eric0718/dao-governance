@@ -13,7 +13,6 @@ contract CryaLock{
     enum AddressType{
       SaftRound,
       Ecology,
-      IDOPublicOffering,
       Consultant,
       Team
     }
@@ -35,6 +34,8 @@ contract CryaLock{
 
     uint256 tokenTotalSupply;
     uint256 constant baseTimeInterval = 30 days;
+
+    uint256 public IDOSupply;
 
     CryaToken public token;
 
@@ -62,10 +63,6 @@ contract CryaLock{
         //Ecology is 39% of tokenTotalSupply.
         distributionRatios[AddressType.Ecology] = tokenTotalSupply.mul(39).div(100);
         distributionRatiosUsed[AddressType.Ecology] = 0;
-        
-        //IDOPublicOffering is 4% of tokenTotalSupply.
-        distributionRatios[AddressType.IDOPublicOffering] = tokenTotalSupply.mul(4).div(100);
-        distributionRatiosUsed[AddressType.IDOPublicOffering] = 0;
 
         //Consultant is 6% of tokenTotalSupply.
         distributionRatios[AddressType.Consultant] = tokenTotalSupply.mul(6).div(100);
@@ -95,7 +92,7 @@ contract CryaLock{
     }
 
     //release locked balance when addresses need to release.
-    function releaseLockedBalance() public onlyAdmin{
+    function releaseLockedBalance() public onlyAdmin returns(bool){
         require(block.timestamp >= tgeTime,"TGE not start!");
         for (uint256 i = 0;i < addresses.length;i++){
             uint256 releaseAmount = calculateReleaseAmount(addresses[i]);
@@ -103,6 +100,7 @@ contract CryaLock{
                 release(addresses[i],releaseAmount);
             }
         }
+        return true;
     }
 
     function calculateReleaseAmount(address user)private returns(uint256){
@@ -136,15 +134,6 @@ contract CryaLock{
                 uint256 lockedBalance = addressInfos[user].totalLocked.mul(75).div(100);
                 releaseAmount = lockedBalance.div(48);
             }
-        }else if (userType == uint8(AddressType.IDOPublicOffering)){
-            //TGE release 33.3%
-            if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
-                return addressInfos[user].totalLocked.mul(333).div(1000);
-            }else{
-                //66.7% release in two months
-                uint256 lockedBalance = addressInfos[user].totalLocked.mul(667).div(1000);
-                releaseAmount = lockedBalance.div(2);
-            }    
         }else if (userType == uint8(AddressType.Consultant)){
             //release in 33 months
             releaseAmount = addressInfos[user].totalLocked.div(33);
@@ -195,10 +184,6 @@ contract CryaLock{
             startTime = tgeTime + 3 * baseTimeInterval;
             updateTime = startTime;
             endTime = tgeTime + 60 * baseTimeInterval;   //(3 + 9 + 48) month
-        }else if (_addrType == AddressType.IDOPublicOffering) {
-            startTime = tgeTime;
-            updateTime = startTime;
-            endTime = tgeTime + 2 * baseTimeInterval;    //2 month
         }else if (_addrType == AddressType.Consultant) {
             startTime = tgeTime + 3 * baseTimeInterval;
             updateTime = startTime;
@@ -213,5 +198,13 @@ contract CryaLock{
             endTime = 0; 
         }
         return (startTime,updateTime,endTime);
+    }
+
+    function IDOTransfer(address idoAccount,uint256 amount)public onlyAdmin{
+        uint256 idoMax = tokenTotalSupply.mul(4).div(100);
+        require(IDOSupply < idoMax,"IDOSupply already equal IDO MaxSupply!");
+        require(IDOSupply + amount <= idoMax,"amount is bigger than IDO available!");
+        IDOSupply += amount;
+        token.transferFrom(admin, idoAccount, amount);
     }
 }
