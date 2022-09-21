@@ -144,7 +144,7 @@ contract CryaLock{
             //20% release in a year
             if(addressInfos[user].totalLocked == addressInfos[user].lockedLeft){
                 return addressInfos[user].totalLocked.mul(20).div(100);
-            }else if (calTime > (updateTime + baseTimeInterval)){
+            }else if (calTime >= (updateTime + baseTimeInterval)){
                 //80% release in 48 months
                 uint256 lockedBalance = addressInfos[user].totalLocked.mul(80).div(100);
                 releaseAmount = lockedBalance.div(48);
