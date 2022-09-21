@@ -43,6 +43,7 @@ contract CryaLock{
     event LockBalance(address beneficiary, uint256 amount);
 
     constructor(uint256 _tgeTime,CryaToken _token){
+        require(_tgeTime >= (block.timestamp + 1 days),"tgeTime is less than the current time + 1 day!");
         tgeTime = _tgeTime;
         admin = msg.sender;
         token = _token;
@@ -74,12 +75,12 @@ contract CryaLock{
     }
 
     //add addresses before TGE
-    /// #if_succeeds $result == true;
-    function addAddressesBeforeTge(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)public onlyAdmin returns (bool){
+    function addAddressesBeforeTge(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)external onlyAdmin returns (bool){
         require(block.timestamp < tgeTime,"This function only called before tgeTime!");
         require(_accounts.length == _addressTypes.length,"Length not equal!");
         require(_addressTypes.length == _lockBalances.length,"Length not equal!");
         for (uint256 i = 0;i < _accounts.length;i++){
+            require(_addressTypes[i] >= uint8(AddressType.SaftRound) && _addressTypes[i] <= uint8(AddressType.Team),"address type must be 0 - 3!");
             uint256 availableDistribution = distributionRatios[AddressType(_addressTypes[i])]
                     .sub(distributionRatiosUsed[AddressType(_addressTypes[i])]);
             require(availableDistribution >= _lockBalances[i],"availableDistribution amount not enough!");
@@ -94,8 +95,7 @@ contract CryaLock{
     }
 
     //release locked balance when addresses need to release.
-    /// #if_succeeds $result == true;
-    function releaseLockedBalance() public onlyAdmin returns(bool){
+    function releaseLockedBalance() external onlyAdmin returns(bool){
         require(block.timestamp >= tgeTime,"TGE not start!");
         for (uint256 i = 0;i < addresses.length;i++){
             uint256 releaseAmount = calculateReleaseAmount(addresses[i]);
@@ -106,14 +106,13 @@ contract CryaLock{
         return true;
     }
 
-    /// #if_succeeds $result >0;
     function calculateReleaseAmount(address user)private returns(uint256){
         uint8 userType = addressInfos[user].addressType;
         uint256 startTime = addressInfos[user].releaseStartTime;
         uint256 updateTime = addressInfos[user].lastUpdateTime;
         uint256 endTime = addressInfos[user].releaseEndTime;
         uint256 calTime = block.timestamp > endTime ? endTime : block.timestamp;
-        uint256 releaseAmount;
+        uint256 releaseAmount = 0;
 
         if(calTime < updateTime || startTime == 0){
             return 0;
@@ -175,7 +174,7 @@ contract CryaLock{
         emit Release(to, releaseAmount);
     }
 
-    function getLockedBalance(address account)public view returns(uint256){
+    function getLockedBalance(address account)external view returns(uint256){
         return addressInfos[account].lockedLeft;
     }
 
@@ -204,13 +203,21 @@ contract CryaLock{
         return (startTime,updateTime,endTime);
     }
 
-    /// #if_succeeds {:msg "Transfer does not modify the sum of balances"} old(IDOSupply) + old(amount) == IDOSupply;
-    function IDOTransfer(address idoAccount,uint256 amount)public onlyAdmin{
+    function IDOTransfer(address idoAccount,uint256 amount)external onlyAdmin{
         uint256 idoMax = tokenTotalSupply.mul(4).div(100);
         require(IDOSupply < idoMax,"IDOSupply already equal IDO MaxSupply!");
         require(IDOSupply + amount <= idoMax,"amount is bigger than IDO available!");
         require(token.balanceOf(admin) >= amount,"admin balance not enough to transfer!");
         IDOSupply += amount;
-        token.transferFrom(admin, idoAccount, amount);
+        require(token.transferFrom(admin, idoAccount, amount));
+    }
+
+    function claimLeft()external {
+        require(block.timestamp >= tgeTime,"TGE not start!");
+        require(block.timestamp > addressInfos[msg.sender].releaseEndTime,"lock not end!");
+        require(addressInfos[msg.sender].lockedLeft >0,"no left to claim");
+
+        token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft);
+        emit Release(msg.sender, addressInfos[msg.sender].lockedLeft);
     }
 }
