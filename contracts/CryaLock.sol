@@ -99,7 +99,7 @@ contract CryaLock{
         require(block.timestamp >= tgeTime,"TGE not start!");
         for (uint256 i = 0;i < addresses.length;i++){
             uint256 releaseAmount = calculateReleaseAmount(addresses[i]);
-            if (releaseAmount >0){
+            if (releaseAmount > 0){
                 release(addresses[i],releaseAmount);
             }
         }
@@ -153,6 +153,10 @@ contract CryaLock{
             return 0;
         }
 
+        if(addressInfos[user].lockedLeft < releaseAmount){
+            return 0;   
+        }
+
         uint256 numbs = (calTime - updateTime).div(baseTimeInterval);
         if (numbs >0){
             addressInfos[user].lastUpdateTime = updateTime + numbs * baseTimeInterval;
@@ -170,7 +174,7 @@ contract CryaLock{
         require(addressInfos[to].lockedLeft >= releaseAmount);
         addressInfos[to].lockedLeft -= releaseAmount;
         
-        token.transferFrom(admin, to, releaseAmount);
+        require(token.transferFrom(admin, to, releaseAmount));
         emit Release(to, releaseAmount);
     }
 
@@ -216,8 +220,10 @@ contract CryaLock{
         require(block.timestamp >= tgeTime,"TGE not start!");
         require(block.timestamp > addressInfos[msg.sender].releaseEndTime,"lock not end!");
         require(addressInfos[msg.sender].lockedLeft >0,"no left to claim");
-
-        token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft);
+        
+        require(token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft));
         emit Release(msg.sender, addressInfos[msg.sender].lockedLeft);
+
+        addressInfos[msg.sender].lockedLeft = 0;
     }
 }
