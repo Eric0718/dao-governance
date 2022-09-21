@@ -74,7 +74,8 @@ contract CryaLock{
     }
 
     //add addresses before TGE
-    function addAddressesBeforeTge(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)public onlyAdmin{
+    /// #if_succeeds $result == true;
+    function addAddressesBeforeTge(address[] calldata _accounts,uint8[] calldata _addressTypes,uint256[] calldata _lockBalances)public onlyAdmin returns (bool){
         require(block.timestamp < tgeTime,"This function only called before tgeTime!");
         require(_accounts.length == _addressTypes.length,"Length not equal!");
         require(_addressTypes.length == _lockBalances.length,"Length not equal!");
@@ -89,9 +90,11 @@ contract CryaLock{
             addresses.push(_accounts[i]);
             emit LockBalance(_accounts[i], addressInfos[_accounts[i]].lockedLeft);
         }
+         return true;
     }
 
     //release locked balance when addresses need to release.
+    /// #if_succeeds $result == true;
     function releaseLockedBalance() public onlyAdmin returns(bool){
         require(block.timestamp >= tgeTime,"TGE not start!");
         for (uint256 i = 0;i < addresses.length;i++){
@@ -103,6 +106,7 @@ contract CryaLock{
         return true;
     }
 
+    /// #if_succeeds $result >0;
     function calculateReleaseAmount(address user)private returns(uint256){
         uint8 userType = addressInfos[user].addressType;
         uint256 startTime = addressInfos[user].releaseStartTime;
@@ -200,10 +204,12 @@ contract CryaLock{
         return (startTime,updateTime,endTime);
     }
 
+    /// #if_succeeds {:msg "Transfer does not modify the sum of balances"} old(IDOSupply) + old(amount) == IDOSupply;
     function IDOTransfer(address idoAccount,uint256 amount)public onlyAdmin{
         uint256 idoMax = tokenTotalSupply.mul(4).div(100);
         require(IDOSupply < idoMax,"IDOSupply already equal IDO MaxSupply!");
         require(IDOSupply + amount <= idoMax,"amount is bigger than IDO available!");
+        require(token.balanceOf(admin) >= amount,"admin balance not enough to transfer!");
         IDOSupply += amount;
         token.transferFrom(admin, idoAccount, amount);
     }
