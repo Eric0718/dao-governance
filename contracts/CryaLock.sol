@@ -216,7 +216,7 @@ contract CryaLock{
         require(token.transferFrom(admin, idoAccount, amount));
     }
 
-    function transferLeft()external onlyAdmin{
+    function releaseLeft()external onlyAdmin{
         for (uint256 i = 0;i < addresses.length;i++){
             if(block.timestamp > addressInfos[addresses[i]].releaseEndTime && addressInfos[addresses[i]].lockedLeft > 0){
                 uint256 senderBalance = token.balanceOf(admin);
