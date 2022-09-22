@@ -216,14 +216,15 @@ contract CryaLock{
         require(token.transferFrom(admin, idoAccount, amount));
     }
 
-    function claimLeft()external {
-        require(block.timestamp >= tgeTime,"TGE not start!");
-        require(block.timestamp > addressInfos[msg.sender].releaseEndTime,"lock not end!");
-        require(addressInfos[msg.sender].lockedLeft >0,"no left to claim");
-        
-        require(token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft));
-        emit Release(msg.sender, addressInfos[msg.sender].lockedLeft);
-
-        addressInfos[msg.sender].lockedLeft = 0;
+    function transferLeft()external onlyAdmin{
+        for (uint256 i = 0;i < addresses.length;i++){
+            if(block.timestamp > addressInfos[addresses[i]].releaseEndTime && addressInfos[addresses[i]].lockedLeft > 0){
+                uint256 senderBalance = token.balanceOf(admin);
+                require(addressInfos[msg.sender].lockedLeft <= senderBalance,"sender balance not enough!");
+                require(token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft));
+                addressInfos[msg.sender].lockedLeft = 0;
+                emit Release(msg.sender, addressInfos[msg.sender].lockedLeft);
+            }
+        }
     }
 }
