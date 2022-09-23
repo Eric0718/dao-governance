@@ -217,13 +217,15 @@ contract CryaLock{
     }
 
     function releaseLeft()external onlyAdmin{
+        address user;
         for (uint256 i = 0;i < addresses.length;i++){
-            if(block.timestamp > addressInfos[addresses[i]].releaseEndTime && addressInfos[addresses[i]].lockedLeft > 0){
+            user = addresses[i];
+            if(block.timestamp > addressInfos[user].releaseEndTime && addressInfos[user].lockedLeft > 0){
                 uint256 senderBalance = token.balanceOf(admin);
-                require(addressInfos[msg.sender].lockedLeft <= senderBalance,"sender balance not enough!");
-                require(token.transferFrom(admin, msg.sender, addressInfos[msg.sender].lockedLeft));
-                addressInfos[msg.sender].lockedLeft = 0;
-                emit Release(msg.sender, addressInfos[msg.sender].lockedLeft);
+                require(addressInfos[user].lockedLeft <= senderBalance,"sender balance not enough!");
+                require(token.transferFrom(admin, user, addressInfos[user].lockedLeft));
+                addressInfos[user].lockedLeft = 0;
+                emit Release(user, addressInfos[user].lockedLeft);
             }
         }
     }
